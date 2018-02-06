@@ -204,4 +204,8 @@ export class JsonApiModel {
     
     return newObject;
   }
+
+  getAttributeMetadata() {
+    return this[AttributeMetadata];
+  }
 }
