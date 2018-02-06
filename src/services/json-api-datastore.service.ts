@@ -1,3 +1,4 @@
+///<reference path="../../node_modules/@angular/http/src/base_request_options.d.ts"/>
 import { Injectable } from '@angular/core';
 import { Headers, Http, RequestOptions, Response } from '@angular/http';
 import find from 'lodash-es/find';
@@ -26,7 +27,7 @@ export class JsonApiDatastore {
   private getDirtyAttributes: Function = this.datastoreConfig.overrides && this.datastoreConfig.overrides.getDirtyAttributes ? this.datastoreConfig.overrides.getDirtyAttributes : this._getDirtyAttributes;
   private toQueryString: Function = this.datastoreConfig.overrides && this.datastoreConfig.overrides.toQueryString ? this.datastoreConfig.overrides.toQueryString : this._toQueryString;
   // tslint:enable:max-line-length
-  
+
   protected config: DatastoreConfig;
 
   constructor(protected http: Http) {}
@@ -92,6 +93,95 @@ export class JsonApiDatastore {
       }
     }
     return dirtyData;
+  }
+
+  saveBulk<T extends JsonApiModel>(
+    items: Array<any>,
+    model: T,
+    params?: any,
+    headers?: Headers,
+    customUrl?: string
+  ): Observable<any> {
+
+    // tslint:disable-next-line:no-param-reassign
+    const that = this;
+    const modelType = <ModelType<T>>model.constructor;
+    const url = this.buildUrl(modelType, params, undefined, customUrl);
+    let customHeaders = new Headers();
+    if (headers !== undefined) customHeaders = headers;
+    customHeaders.set('Accept', 'application/vnd.api+json; ext=bulk');
+    customHeaders.set('Accept-Type', 'application/vnd.api+json; ext=bulk');
+    const options = this.getOptions(customHeaders);
+    const patchData: Array<any> = [];
+    const postData: Array<any> = [];
+
+    items.forEach(function (item) {
+      const modelConfig = model.modelConfig;
+      const relationships = that.getRelationships(item);
+      const typeName = modelConfig.type;
+
+      const body = {
+        relationships,
+        type: typeName,
+        id: item.id,
+        attributes: this._getDirtyAttributes(item.getAttributeMetadata())
+      };
+
+      if (!item.id) {
+        postData.push(body);
+      } else {
+        patchData.push(body);
+      }
+    });
+
+    const fullBody = { POST: { data: postData }, PATCH: { data: patchData } };
+
+    const findPostPrediction = function (fixtureId: number) {
+      let foundItem = null;
+      items.forEach(function (itemData) {
+        if (itemData.fixture_id === fixtureId) {
+          foundItem = itemData;
+        }
+      });
+      return foundItem;
+    };
+
+    return this.http.post(url, fullBody, options)
+      .map(function (res) {
+        const result: any[T] = [];
+        const body = res.json();
+
+        if (body.hasOwnProperty('PATCH')) {
+          if (body.PATCH.data.length > 0) {
+            this.extractQueryDataBulk(body.PATCH, modelType, true).forEach( function(singleItem: any) {
+              result.push(singleItem);
+            });
+          }
+        }
+
+        if (body.hasOwnProperty('POST')) {
+          if (body.POST.data.length > 0) {
+            body.POST.data.forEach(function (item: any) {
+              result.push(
+                this.extractRecordDataFromBulk(
+                  item,
+                  modelType,
+                  findPostPrediction(item.attributes.fixture_id)
+                )
+              );
+            });
+          }
+        }
+
+        return result;
+      })
+      .catch(function (res) {
+        if (res == null) {
+          return Observable.of(model);
+        }
+
+        return this.handleError(res);
+      });
   }
 
   saveRecord<T extends JsonApiModel>(
@@ -196,7 +286,7 @@ export class JsonApiDatastore {
       if (data.hasOwnProperty(key)) {
         if (data[key] instanceof JsonApiModel) {
           relationships = relationships || {};
-          
+
           if (data[key].id) {
             relationships[key] = {
               data: this.buildSingleRelationshipData(data[key])
@@ -240,6 +330,24 @@ export class JsonApiDatastore {
     return relationShipData;
   }
 
+  protected extractQueryDataBulk<T extends JsonApiModel> (
+    res: any,
+    modelType: ModelType<T>,
+    withMeta = false
+  ) {
+    const models: any[T] = [];
+    res.data.forEach(function (data: any) {
+      const model = this.deserializeModel(modelType, data);
+      this.addToStore(model);
+      if (res.included) {
+        model.syncRelationships(data, res.included, 0);
+        this.addToStore(model);
+      }
+      models.push(model);
+    });
+    return models;
+  }
+
   protected extractQueryData<T extends JsonApiModel>(
     res: any,
     modelType: ModelType<T>,
@@ -270,6 +378,22 @@ export class JsonApiDatastore {
   protected deserializeModel<T extends JsonApiModel>(modelType: ModelType<T>, data: any) {
     data.attributes = this.transformSerializedNamesToPropertyNames(modelType, data.attributes);
     return new modelType(this, data);
+  }
+
+  protected extractRecordDataFromBulk<T extends JsonApiModel>(res: any, modelType: ModelType<T>, model?: T): T {
+    if (model) {
+      model.id = res.id;
+      Object.assign(model, res.attributes);
+    }
+
+    // tslint:disable-next-line:no-param-reassign
+    model = model || this.deserializeModel(modelType, res.data);
+    this.addToStore(model);
+    if (res.included) {
+      model.syncRelationships(res, res.included, 0);
+      this.addToStore(model);
+    }
+    return model;
   }
 
   protected extractRecordData<T extends JsonApiModel>(res: Response, modelType: ModelType<T>, model?: T): T {
@@ -395,7 +519,7 @@ export class JsonApiDatastore {
 
         if (propertyHasMany) {
           relationshipModel[propertyHasMany.propertyName] = relationshipModel[propertyHasMany.propertyName] || [];
-          
+
           const indexOfModel = relationshipModel[propertyHasMany.propertyName].indexOf(model);
 
           if (indexOfModel === -1) {
@@ -418,7 +542,7 @@ export class JsonApiDatastore {
   protected transformSerializedNamesToPropertyNames<T extends JsonApiModel>(modelType: ModelType<T>, attributes: any) {
     const serializedNameToPropertyName = this.getModelPropertyNames(modelType.prototype);
     const properties: any = {};
-    
+
     Object.keys(serializedNameToPropertyName).forEach((serializedName) => {
       if (attributes[serializedName] !== null && attributes[serializedName] !== undefined) {
         properties[serializedNameToPropertyName[serializedName]] = attributes[serializedName];
