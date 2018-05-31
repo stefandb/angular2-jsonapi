@@ -22,9 +22,8 @@ export function Attribute(options: AttributeDecoratorOptions = {}): PropertyDeco
       if (attrConverter) {
         if (!forSerialisation) {
           return attrConverter.mask(value);
-        } else {
-          return attrConverter.unmask(value);
         }
+        return attrConverter.unmask(value);
       }
 
       return value;
@@ -58,7 +57,7 @@ export function Attribute(options: AttributeDecoratorOptions = {}): PropertyDeco
         instance[AttributeMetadata] = {};
       }
 
-      const propertyHasDirtyAttributes = typeof oldValue === 'undefined' && !isNew ? false : hasDirtyAttributes;
+      const propertyHasDirtyAttributes = (oldValue === newValue) ? false : hasDirtyAttributes;
 
       instance[AttributeMetadata][propertyName] = {
         newValue,

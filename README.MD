@@ -28,6 +28,7 @@ A lightweight Angular 2 adapter for [JSON API](http://jsonapi.org/)
     - [Error handling](#error-handling)
     - [Dates](#dates)
 - [Development](#development)
+- [Additional tools](#additional-tools)
 - [License](#licence)
 
 ## Introduction
@@ -88,7 +89,7 @@ export class AppModule { }
 Firstly, create your `Datastore` service:
 - Extend the `JsonApiDatastore` class
 - Decorate it with `@JsonApiDatastoreConfig`, set the `baseUrl` for your APIs and map your models (Optional: you can set `apiVersion`, `baseUrl` will be suffixed with it)
-- Pass the `Http` depencency to the parent constructor.
+- Pass the `HttpClient` depencency to the parent constructor.
 
 ```typescript
 import { JsonApiDatastoreConfig, JsonApiDatastore, DatastoreConfig } from 'angular2-jsonapi';
@@ -106,7 +107,7 @@ const config: DatastoreConfig = {
 @JsonApiDatastoreConfig(config)
 export class Datastore extends JsonApiDatastore {
 
-    constructor(http: Http) {
+    constructor(http: HttpClient) {
         super(http);
     }
 
@@ -184,9 +185,12 @@ constructor(private datastore: Datastore) { }
 
 getPosts(){
     this.datastore.findAll(Post, {
-        page: { size: 10, number: 1}
+        page: { size: 10, number: 1 },
+        filter: {
+          title: 'My Post',
+        },
     }).subscribe(
-        (posts: Post[]) => console.log(posts)
+        (posts: JsonApiQueryData<Post>) => console.log(posts.getModels())
     );
 }
 ```
@@ -336,6 +340,8 @@ this.datastore.findRecord(Post, '1', {
 ```
 
 The library will try to resolve relationships on infinite levels connecting nested objects by reference. So that you can have a `Post`, with a list of `Comment`s, that have a `User` that has `Post`s, that have `Comment`s... etc.
+
+**Note**: If you `include` multiple relationships, **do not** use whitespaces in the `include` string (e.g. `comments, comments.user`) as those will be encoded to `%20` and this results in a broken URL.
 
 #### Creating Records
 
@@ -540,6 +546,9 @@ To lint all `*.ts` files:
 ```bash
 $ npm run lint
 ```
+
+## Additional tools
+* Gem for generating the model definitions based on active model serializers: https://github.com/oncore-education/jsonapi_models
 
 ## Thanks
 

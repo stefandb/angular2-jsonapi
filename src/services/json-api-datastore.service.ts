@@ -1,9 +1,12 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders, HttpResponse, HttpErrorResponse } from '@angular/common/http';
 import find from 'lodash-es/find';
-import { map, catchError } from 'rxjs/operators';
-import { throwError, of, Observable } from 'rxjs';
+import { Observable } from 'rxjs/Observable';
 import { ErrorObservable } from 'rxjs/observable/ErrorObservable';
+import 'rxjs/add/operator/map';
+import 'rxjs/add/operator/catch';
+import 'rxjs/add/observable/throw';
+import 'rxjs/add/observable/of';
 import { JsonApiModel } from '../models/json-api.model';
 import { ErrorResponse } from '../models/error-response.model';
 import { JsonApiQueryData } from '../models/json-api-query-data';
@@ -21,15 +24,17 @@ export class JsonApiDatastore {
   // tslint:disable-next-line:variable-name
   private _store: {[type: string]: {[id: string]: JsonApiModel}} = {};
   private toQueryString: Function = this.datastoreConfig.overrides
-  && this.datastoreConfig.overrides.toQueryString ?
-    this.datastoreConfig.overrides.toQueryString : this._toQueryString;
+    && this.datastoreConfig.overrides.toQueryString ?
+      this.datastoreConfig.overrides.toQueryString : this._toQueryString;
   // tslint:enable:max-line-length
+
   private get getDirtyAttributes() {
     if (this.datastoreConfig.overrides
-      && this.datastoreConfig.overrides.getDirtyAttributes) {
+    && this.datastoreConfig.overrides.getDirtyAttributes) {
       return this.datastoreConfig.overrides.getDirtyAttributes;
+    } else {
+      return JsonApiDatastore.getDirtyAttributes;
     }
-    return JsonApiDatastore.getDirtyAttributes;
   }
 
   protected config: DatastoreConfig;
@@ -46,10 +51,8 @@ export class JsonApiDatastore {
     const requestHeaders: HttpHeaders = this.buildHeaders(headers);
     const url: string = this.buildUrl(modelType, params, undefined, customUrl);
     return this.http.get(url, { headers: requestHeaders })
-      .pipe(
-        map((res: any) => this.extractQueryData(res, modelType)),
-        catchError((res: any) => this.handleError(res))
-      );
+      .map((res: any) => this.extractQueryData(res, modelType))
+      .catch((res: any) => this.handleError(res));
   }
 
   findAll<T extends JsonApiModel>(
@@ -62,10 +65,8 @@ export class JsonApiDatastore {
     const url: string = this.buildUrl(modelType, params, undefined, customUrl);
 
     return this.http.get(url, { headers: requestHeaders })
-      .pipe(
-        map((res: any) => this.extractQueryData(res, modelType, true)),
-        catchError((res: any) => this.handleError(res))
-      );
+      .map((res: any) => this.extractQueryData(res, modelType, true))
+      .catch((res: any) => this.handleError(res));
   }
 
   findRecord<T extends JsonApiModel>(
@@ -79,10 +80,8 @@ export class JsonApiDatastore {
     const url: string = this.buildUrl(modelType, params, id, customUrl);
 
     return this.http.get(url, { headers: requestHeaders, observe: 'response' })
-      .pipe(
-        map((res) => this.extractRecordData(res, modelType)),
-        catchError((res: any) => this.handleError(res))
-      );
+      .map((res) => this.extractRecordData(res, modelType))
+      .catch((res: any) => this.handleError(res));
   }
 
   createRecord<T extends JsonApiModel>(modelType: ModelType<T>, data?: any): T {
@@ -136,17 +135,16 @@ export class JsonApiDatastore {
     }
 
     return httpCall
-      .pipe(
-        map((res) => [200, 201].indexOf(res.status) !== -1 ? this.extractRecordData(res, modelType, model) : model),
-        catchError((res) => {
-          if (res == null) {
-            return of(model);
-          }
-          return this.handleError(res);
-        }),
-        map((res) => this.resetMetadataAttributes(res, attributesMetadata, modelType)),
-        map((res) => this.updateRelationships(res, relationships))
-      );
+      .map((res) => [200, 201].indexOf(res.status) !== -1 ? this.extractRecordData(res, modelType, model) : model)
+      .catch((res) => {
+        if (res == null) {
+          return Observable.of(model);
+        }
+
+        return this.handleError(res);
+      })
+      .map((res) => this.resetMetadataAttributes(res, attributesMetadata, modelType))
+      .map((res) => this.updateRelationships(res, relationships));
   }
 
 
@@ -160,10 +158,7 @@ export class JsonApiDatastore {
     const requestHeaders: HttpHeaders = this.buildHeaders(headers);
     const url: string = this.buildUrl(modelType, null, id, customUrl);
 
-    return this.http.delete(url, { headers: requestHeaders })
-      .pipe(
-        catchError((res: HttpErrorResponse) => this.handleError(res))
-      );
+    return this.http.delete(url, { headers: requestHeaders }).catch((res: HttpErrorResponse) => this.handleError(res));
   }
 
   peekRecord<T extends JsonApiModel>(modelType: ModelType<T>, id: string): T | null {
@@ -321,7 +316,7 @@ export class JsonApiDatastore {
     return deserializedModel;
   }
 
-  protected handleError(error: any): ErrorObservable<any> {
+  protected handleError(error: any): ErrorObservable {
 
     if (
       error instanceof HttpErrorResponse &&
@@ -331,11 +326,11 @@ export class JsonApiDatastore {
     ) {
       const errors: ErrorResponse = new ErrorResponse(error.error.errors);
       console.error(error, errors);
-      return throwError(errors);
+      return Observable.throw(errors);
     }
 
     console.error(error);
-    return throwError(error);
+    return Observable.throw(error);
   }
 
   protected parseMeta(body: any, modelType: ModelType<JsonApiModel>): any {
@@ -395,6 +390,7 @@ export class JsonApiDatastore {
 
   protected resetMetadataAttributes<T extends JsonApiModel>(res: T, attributesMetadata: any, modelType: ModelType<T>) {
     // TODO check why is attributesMetadata from the arguments never used
+
     for (const propertyName in attributesMetadata) {
       if (attributesMetadata.hasOwnProperty(propertyName)) {
         const metadata: any = attributesMetadata[propertyName];

@@ -1,3 +1,29 @@
+# [5.0.0] (2018-11-04)
+
+### BREAKING CHANGES
+
+  * Replace HttpModule with HttpClientModule
+
+# [4.1.0] (2018-03-01)
+
+### Bug fixes
+
+  * Fix creating nested models passed through included property
+
+# [4.0.3] (2018-01-16)
+
+### Features
+
+* Update peer dependencies to support Angular v5
+
+# [4.0.2] (2017-11-06)
+
+### Bug fixes
+
+* Fix date timezone
+* Fix falsy attributes mapping
+* Tweak methods visibility
+
 # [4.0.1] (2017-11-06)
 
 ### Bug fixes
