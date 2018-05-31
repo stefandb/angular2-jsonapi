@@ -16,7 +16,6 @@ import {
 } from '../../test/datastore-with-config.service';
 import { HttpErrorResponse } from '@angular/common/http';
 
-
 let datastore: Datastore;
 let datastoreWithConfig: DatastoreWithConfig;
 let httpMock: HttpTestingController;

@@ -70,7 +70,6 @@ export class JsonApiModel {
     return Reflect.getMetadata('JsonApiModelConfig', this.constructor);
   }
 
-
   private parseHasMany(data: any, included: any, level: number): void {
     const hasMany: any = Reflect.getMetadata('HasMany', this);
 
@@ -166,7 +165,6 @@ export class JsonApiModel {
     });
     return relationshipList;
   }
-
 
   private getBelongsToRelationship<T extends JsonApiModel>(
     modelType: ModelType<T>,

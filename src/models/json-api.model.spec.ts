@@ -127,7 +127,7 @@ describe('JsonApiModel', () => {
       });
 
       describe('update relationships', () => {
-        it ('should return updated relationship', () => {
+        it('should return updated relationship', () => {
           const REL = 'books';
           const BOOK_NUMBER = 1;
           const CHAPTERS_NUMBER = 4;
